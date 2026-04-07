@@ -1,0 +1,59 @@
+# Changelog — Glyph Wars
+
+## [Unreleased]
+
+- [2026-04-06] project: Initial project scaffold — steering, specs, hooks, MCP config, and package.json created
+- [2026-04-06] CHANGELOG.md: Updated header to "Glyph Wars" and added initial project scaffold entry under [Unreleased]
+- [2026-04-06] .vscode/settings.json: Disabled HTML auto-closing tags
+- [2026-04-06] README.md: Added full game documentation — controls, gameplay, features, enemy types, and run instructions
+- [2026-04-06] .vscode/settings.json: Disabled HTML auto-closing tags (html.autoClosingTags: false)
+- [2026-04-06] .vscode/settings.json: Added html.autoClosingTags: false to disable HTML auto-closing tags
+- [2026-04-06] .vscode/settings.json: Added html.autoClosingTags false setting
+- [2026-04-06] .vscode/settings.json: Added html.autoClosingTags false to disable auto-closing HTML tags in editor
+- [2026-04-06] .vscode/settings.json: Added html.autoClosingTags false alongside existing kiroAgent.configureMCP setting
+- [2026-04-06] .vscode/settings.json: Disabled HTML auto-closing tags
+- [2026-04-06] .vscode/settings.json: Disabled HTML auto-closing tags
+- [2026-04-06] .vscode/settings.json: Disabled HTML auto-closing tags
+- [2026-04-06] .vscode/settings.json: Added html.autoClosingTags false setting alongside existing kiroAgent.configureMCP disabled
+- [2026-04-06] .vscode/settings.json: Disabled HTML auto-closing tags
+- [2026-04-06] .vscode/settings.json: Disabled HTML auto-closing tags
+- [2026-04-06] .vscode/settings.json: Set html.autoClosingTags to false alongside existing kiroAgent.configureMCP setting
+- [2026-04-06] .vscode/settings.json: Set html.autoClosingTags to false alongside existing kiroAgent.configureMCP setting
+- [2026-04-06] .vscode/settings.json: Disabled HTML auto-closing tags
+- [2026-04-06] .vscode/settings.json: Disabled HTML auto-closing tags
+- [2026-04-06] .vscode/settings.json: Disabled HTML auto-closing tags
+- [2026-04-06] .vscode/settings.json: Disabled HTML auto-closing tags
+- [2026-04-06] .vscode/settings.json: Disabled HTML auto-closing tags
+- [2026-04-06] .vscode/settings.json: Disabled HTML auto-closing tags
+- [2026-04-06] .vscode/settings.json: Disabled HTML auto-closing tags
+- [2026-04-06] .vscode/settings.json: Disabled HTML auto-closing tags
+- [2026-04-06] .vscode/settings.json: Disabled HTML auto-closing tags
+- [2026-04-06] .vscode/settings.json: Disabled HTML auto-closing tags
+- [2026-04-06] .vscode/settings.json: Disabled HTML auto-closing tags
+- [2026-04-06] .vscode/settings.json: Added html.autoClosingTags false setting alongside existing kiroAgent.configureMCP disabled entry
+- [2026-04-06] .vscode/settings.json: Disabled HTML auto-closing tags
+- [2026-04-06] .vscode/settings.json: Added html.autoClosingTags false alongside existing kiroAgent.configureMCP disabled setting
+- [2026-04-06] .vscode/settings.json: Added html.autoClosingTags false alongside existing kiroAgent.configureMCP disabled setting
+- [2026-04-06] .kiro/settings/mcp.json: Removed explicit disabled and autoApprove fields from aws-docs MCP server config
+- [2026-04-06] .vscode/settings.json: Added html.autoClosingTags false alongside existing kiroAgent.configureMCP disabled setting
+- [2026-04-06] .vscode/settings.json: Added html.autoClosingTags false alongside existing kiroAgent.configureMCP disabled setting
+- [2026-04-06] .vscode/settings.json: Added html.autoClosingTags false alongside existing kiroAgent.configureMCP disabled setting
+- [2026-04-06] .vscode/settings.json: Added html.autoClosingTags false alongside existing kiroAgent.configureMCP disabled setting
+- [2026-04-06] .vscode/settings.json: Added html.autoClosingTags false alongside existing kiroAgent.configureMCP disabled setting
+- [2026-04-06] .vscode/settings.json: Added html.autoClosingTags false alongside existing kiroAgent.configureMCP disabled setting
+- [2026-04-06] .vscode/settings.json: Added html.autoClosingTags false alongside existing kiroAgent.configureMCP disabled setting
+- [2026-04-06] .vscode/settings.json: Added html.autoClosingTags false alongside existing kiroAgent.configureMCP disabled setting
+- [2026-04-06] .vscode/settings.json: Added html.autoClosingTags false alongside existing kiroAgent.configureMCP disabled setting
+- [2026-04-06] .vscode/settings.json: Added html.autoClosingTags false alongside existing kiroAgent.configureMCP disabled setting
+- [2026-04-06] .vscode/settings.json: Added html.autoClosingTags false alongside existing kiroAgent.configureMCP disabled setting
+- [2026-04-06] .vscode/settings.json: Added html.autoClosingTags false alongside existing kiroAgent.configureMCP disabled setting
+- [2026-04-06] .vscode/settings.json: Added html.autoClosingTags false alongside existing kiroAgent.configureMCP disabled setting
+- [2026-04-06] .vscode/settings.json: Added html.autoClosingTags false alongside existing kiroAgent.configureMCP disabled setting
+- [2026-04-06] .vscode/settings.json: Added html.autoClosingTags false alongside existing kiroAgent.configureMCP disabled setting
+- [2026-04-06] .vscode/settings.json: Added html.autoClosingTags false alongside existing kiroAgent.configureMCP disabled setting
+- [2026-04-06] .vscode/settings.json: Added html.autoClosingTags false alongside existing kiroAgent.configureMCP disabled setting
+- [2026-04-06] .vscode/settings.json: Added html.autoClosingTags false alongside existing kiroAgent.configureMCP disabled setting
+- [2026-04-06] .vscode/settings.json: Added html.autoClosingTags false alongside existing kiroAgent.configureMCP disabled setting
+- [2026-04-06] .vscode/settings.json: Enabled kiroAgent.configureMCP (changed from Disabled to Enabled)
+- [2026-04-06] .vscode/settings.json: Added html.autoClosingTags false alongside existing kiroAgent.configureMCP Enabled setting
+- [2026-04-07] .vscode/settings.json: Added html.autoClosingTags false alongside existing kiroAgent.configureMCP Enabled setting

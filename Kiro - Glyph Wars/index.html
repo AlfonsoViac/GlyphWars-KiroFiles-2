@@ -1,0 +1,1385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Glyph Wars</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #07071a;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    font-family: 'Courier New', monospace;
+    color: #ccc;
+    gap: 0;
+  }
+  #title {
+    font-size: 13px;
+    letter-spacing: 0.35em;
+    color: #5566cc;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+    font-weight: bold;
+  }
+  #canvas-wrap {
+    position: relative;
+    border: 1px solid #1a1a3a;
+    border-radius: 4px;
+    overflow: hidden;
+    line-height: 0;
+  }
+  #game {
+    display: block;
+    width: 680px;
+    height: 500px;
+    cursor: none;
+  }
+  #stats-bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 8px;
+    width: 680px;
+  }
+  .stat-pill {
+    border: 1px solid #2a2a4a;
+    border-radius: 4px;
+    padding: 5px 12px;
+    font-size: 13px;
+    color: #888;
+    background: #0d0d22;
+    white-space: nowrap;
+  }
+  .stat-pill span {
+    color: #fff;
+    font-weight: bold;
+  }
+  #btn-restart {
+    margin-left: auto;
+    border: 1px solid #2a2a4a;
+    border-radius: 4px;
+    padding: 5px 16px;
+    font-size: 13px;
+    font-family: 'Courier New', monospace;
+    letter-spacing: 0.1em;
+    color: #ccc;
+    background: #0d0d22;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+  }
+  #btn-restart:hover { background: #1a1a3a; color: #fff; }
+  #scores-panel {
+    width: 680px;
+    border: 1px solid #1a1a3a;
+    border-radius: 4px;
+    background: #0a0a1e;
+    margin-top: 8px;
+    padding: 10px 16px 12px;
+  }
+  #scores-panel h3 {
+    font-size: 11px;
+    letter-spacing: 0.3em;
+    color: #5566cc;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  #scores-list {
+    list-style: none;
+    font-size: 13px;
+    color: #666;
+    min-height: 20px;
+  }
+  #scores-list li {
+    display: grid;
+    grid-template-columns: 20px 1fr auto auto;
+    gap: 8px;
+    padding: 2px 0;
+    align-items: center;
+  }
+  #scores-list li .rank { color: #5566cc; }
+  #scores-list li .wave { color: #888; text-align: center; }
+  #scores-list li .pts  { color: #fff; font-weight: bold; text-align: right; }
+  #scores-list .empty   { color: #444; font-style: italic; grid-column: 1/-1; }
+  #controls-bar {
+    margin-top: 10px;
+    font-size: 15px;
+    color: #aaa;
+    display: flex;
+    gap: 14px;
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  #controls-bar kbd {
+    border: 1px solid #4455aa;
+    border-radius: 4px;
+    padding: 3px 10px;
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    color: #aabbff;
+    background: #0d0d22;
+  }
+  #controls-bar .dot { color: #3a3a6a; }
+  #controls-bar .label { color: #cccccc; }
+</style>
+</head>
+<body>
+<div id="title">G L Y P H &nbsp; W A R S</div>
+<div id="canvas-wrap">
+  <canvas id="game" width="680" height="500"></canvas>
+</div>
+<div id="stats-bar">
+  <div class="stat-pill">Score <span id="ui-score">0</span></div>
+  <div class="stat-pill">Combo <span id="ui-combo">x1</span></div>
+  <div class="stat-pill">Wave <span id="ui-wave">1</span></div>
+  <div class="stat-pill">HP <span id="ui-hp">100</span></div>
+  <div class="stat-pill">Chrono <span id="ui-chrono">100%</span></div>
+  <button id="btn-restart">RESTART</button>
+</div>
+<div id="scores-panel">
+  <h3>High Scores</h3>
+  <ul id="scores-list"><li><span class="empty">No scores yet — play to set one!</span></li></ul>
+</div>
+<div id="controls-bar">
+  <kbd>Mouse</kbd> <span class="label"></span>move</span>
+  <span class="dot">·</span>
+  <kbd>Click</kbd> <span class="label">dash</span>
+  <span class="dot">·</span>
+  <kbd>Space</kbd> <span class="label">chrono shift (slow time)</span>
+  <span class="dot">·</span>
+  <span class="label">Absorb matching glyphs — avoid mismatched ones</span>
+  <span class="dot">·</span>
+  <span class="label">Glyph changes every 5 kills</span>
+</div>
+<script>
+// ─── Constants ───────────────────────────────────────────────────────────────
+const GLYPHS  = ['△', '◇', '☆', '⬡', '⊕', '⊗', '◈', '✦'];
+const COLORS  = ['#ff6b6b','#ffd93d','#6bcb77','#4d96ff','#c77dff','#ff9f43','#00d2d3','#ff6fd8'];
+const W = 680, H = 500;
+const PLAYER_R = 18, ENEMY_R = 14, SPLITTER_R = 18, PICKUP_R = 12;
+const PLAYER_SPEED = 0.12;
+const DASH_FRAMES = 8, DASH_COOLDOWN = 30, INVULN_FRAMES = 10;
+const COMBO_DECAY = 100;
+const CHRONO_DRAIN = 0.45, CHRONO_REGEN = 0.07, CHRONO_SCALE = 0.35;
+const PARTICLE_MAX = 200;
+const TRAIL_LEN = 12;
+
+// ─── Canvas Setup ────────────────────────────────────────────────────────────
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+
+// ─── State ───────────────────────────────────────────────────────────────────
+let gameState = 'menu'; // 'menu' | 'playing' | 'paused' | 'gameover'
+let mouse = { x: W / 2, y: H / 2 };
+let keys = {};
+
+// ─── Narrator (ElevenLabs TTS) ───────────────────────────────────────────────
+// Set your ElevenLabs API key here (or leave empty to disable narrator)
+const ELEVENLABS_API_KEY = 'sk_7f72b5b34a9469a3dd3e97d2c4e37168b846cde78fd386e4';
+const NARRATOR_VOICE_ID  = 'wa4sQVgbDDzUDEzJwch3'; // Eryn — Strong Female Military Commander
+
+async function speakNarrator(text) {
+  if (!ELEVENLABS_API_KEY) return;
+  try {
+    const ac = getAudioCtx();
+    const res = await fetch(
+      `https://api.elevenlabs.io/v1/text-to-speech/${NARRATOR_VOICE_ID}`,
+      {
+        method: 'POST',
+        headers: {
+          'xi-api-key': ELEVENLABS_API_KEY,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          text,
+          model_id: 'eleven_flash_v2_5',
+          voice_settings: { stability: 0.45, similarity_boost: 0.80, speed: 0.9 },
+        }),
+      }
+    );
+    if (!res.ok) return;
+    const arrayBuf = await res.arrayBuffer();
+    const audioBuf = await ac.decodeAudioData(arrayBuf);
+    const src = ac.createBufferSource();
+    src.buffer = audioBuf;
+    const narratorGain = ac.createGain();
+    narratorGain.gain.setValueAtTime(1.725, ac.currentTime);
+    src.connect(narratorGain);
+    narratorGain.connect(ac.destination);
+    src.start();
+  } catch (e) {}
+}
+
+// ─── Audio ───────────────────────────────────────────────────────────────────
+let audioCtx = null;
+let musicSource = null;  // AudioBufferSourceNode — supports live playbackRate
+let musicBuffer = null;  // pre-rendered AudioBuffer of one loop
+let musicStarted = false;
+
+// ── Darksynth / Kavinsky-style — D minor, 118 BPM, four-on-the-floor ──
+const BPM = 118;
+const BEAT = 60 / BPM;
+const BAR  = BEAT * 4;
+const T16  = BEAT / 4; // 16th note
+
+function midiHz(n) { return 440 * Math.pow(2, (n - 69) / 12); }
+
+// Arp lead — gated sawtooth, 16th-note pattern over 2 bars
+// D minor: D3=50 F3=53 A3=57 C4=60 D4=62 F4=65 A4=69
+// Pattern: driving 16th arp up then down
+const ARP = [
+  50,53,57,60, 62,60,57,53, 50,53,57,62, 65,62,57,53,  // bar 1
+  50,53,57,60, 62,65,69,65, 62,60,57,53, 50,53,57,50,  // bar 2
+  50,53,57,60, 62,60,57,53, 50,53,57,62, 65,62,57,53,  // bar 3
+  50,53,57,60, 62,65,69,65, 62,60,57,53, 50,50,50,50,  // bar 4
+];
+
+// Sub bass — one note per beat, root movement
+// Dm - Bb - F - A (classic darksynth progression)
+const BASS_SEQ = [
+  38,38,38,38,  // D2 x4
+  34,34,34,34,  // Bb1 x4
+  29,29,29,29,  // F1 x4
+  33,33,33,33,  // A1 x4
+];
+
+// Synth pad stabs — gated, every half-bar, sawtooth chords
+// Dm7, BbM7, FM7, Am7
+const PAD_SEQ = [
+  [38,41,45,48], // Dm7
+  [34,38,41,45], // BbM7
+  [29,33,36,41], // FM7
+  [33,36,40,45], // Am7
+];
+
+const LOOP_BARS = 4;
+const LOOP_DUR  = BAR * LOOP_BARS;
+
+function getAudioCtx() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+
+async function buildMusicBuffer() {
+  const sampleRate = 44100;
+  const offline = new OfflineAudioContext(1, Math.ceil(LOOP_DUR * sampleRate), sampleRate);
+
+  // Master chain: slight overdrive via waveshaper, then lowpass
+  const masterGain = offline.createGain();
+  masterGain.gain.setValueAtTime(0.612, 0);
+
+  const lp = offline.createBiquadFilter();
+  lp.type = 'lowpass';
+  lp.frequency.setValueAtTime(5500, 0);
+  lp.Q.setValueAtTime(1.2, 0);
+
+  masterGain.connect(lp);
+  lp.connect(offline.destination);
+
+  // ── Kick: deep sine punch ──
+  function addKick(t) {
+    const osc = offline.createOscillator();
+    const g   = offline.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(200, t);
+    osc.frequency.exponentialRampToValueAtTime(38, t + 0.06);
+    g.gain.setValueAtTime(0.9, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.28);
+    osc.connect(g); g.connect(offline.destination);
+    osc.start(t); osc.stop(t + 0.29);
+  }
+
+  // ── Clap/snare: layered noise ──
+  function addSnare(t) {
+    const dur = 0.18;
+    const buf = offline.createBuffer(1, Math.ceil(sampleRate * dur), sampleRate);
+    const d   = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    const src = offline.createBufferSource();
+    src.buffer = buf;
+    const hpf = offline.createBiquadFilter();
+    hpf.type = 'highpass'; hpf.frequency.setValueAtTime(1200, t);
+    const g = offline.createGain();
+    g.gain.setValueAtTime(0.38, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    src.connect(hpf); hpf.connect(g); g.connect(offline.destination);
+    src.start(t); src.stop(t + dur);
+    // body tone
+    const osc = offline.createOscillator();
+    const og  = offline.createGain();
+    osc.type = 'triangle'; osc.frequency.setValueAtTime(180, t);
+    og.gain.setValueAtTime(0.18, t);
+    og.gain.exponentialRampToValueAtTime(0.001, t + 0.07);
+    osc.connect(og); og.connect(offline.destination);
+    osc.start(t); osc.stop(t + 0.08);
+  }
+
+  // ── Closed hi-hat ──
+  function addHat(t, vol = 0.09) {
+    const dur = 0.03;
+    const buf = offline.createBuffer(1, Math.ceil(sampleRate * dur), sampleRate);
+    const d   = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    const src = offline.createBufferSource();
+    src.buffer = buf;
+    const bpf = offline.createBiquadFilter();
+    bpf.type = 'bandpass'; bpf.frequency.setValueAtTime(9000, t); bpf.Q.setValueAtTime(0.5, t);
+    const g = offline.createGain();
+    g.gain.setValueAtTime(vol, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    src.connect(bpf); bpf.connect(g); g.connect(offline.destination);
+    src.start(t); src.stop(t + dur + 0.002);
+  }
+
+  // ── Arp lead: gated sawtooth, short staccato ──
+  function addArp(freq, t) {
+    const dur = T16 * 0.7;
+    const osc1 = offline.createOscillator();
+    const osc2 = offline.createOscillator(); // slight detune for width
+    const g    = offline.createGain();
+    osc1.type = 'sawtooth'; osc1.frequency.setValueAtTime(freq, t); osc1.detune.setValueAtTime(-8, t);
+    osc2.type = 'sawtooth'; osc2.frequency.setValueAtTime(freq, t); osc2.detune.setValueAtTime(8, t);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(0.16, t + 0.005);
+    g.gain.setValueAtTime(0.16, t + dur * 0.6);
+    g.gain.linearRampToValueAtTime(0.0001, t + dur);
+    osc1.connect(g); osc2.connect(g); g.connect(masterGain);
+    osc1.start(t); osc1.stop(t + dur + 0.005);
+    osc2.start(t); osc2.stop(t + dur + 0.005);
+  }
+
+  // ── Sub bass: square wave, one per beat ──
+  function addBass(note, t) {
+    const dur = BEAT * 0.85;
+    const osc = offline.createOscillator();
+    const g   = offline.createGain();
+    osc.type = 'square'; osc.frequency.setValueAtTime(midiHz(note), t);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(0.28, t + 0.01);
+    g.gain.setValueAtTime(0.28, t + dur * 0.7);
+    g.gain.linearRampToValueAtTime(0.0001, t + dur);
+    osc.connect(g); g.connect(masterGain);
+    osc.start(t); osc.stop(t + dur + 0.01);
+  }
+
+  // ── Pad stab: sawtooth chord, gated every half-bar ──
+  function addPad(notes, t) {
+    const dur = BAR * 0.45; // gated — punchy, not washy
+    notes.forEach((note, i) => {
+      const osc = offline.createOscillator();
+      const g   = offline.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(midiHz(note), t);
+      osc.detune.setValueAtTime((i % 2 === 0 ? -5 : 5), t);
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.linearRampToValueAtTime(0.055, t + 0.008);
+      g.gain.setValueAtTime(0.055, t + dur * 0.5);
+      g.gain.linearRampToValueAtTime(0.0001, t + dur);
+      osc.connect(g); g.connect(masterGain);
+      osc.start(t); osc.stop(t + dur + 0.01);
+    });
+  }
+
+  // ── Schedule everything ──
+  for (let bar = 0; bar < LOOP_BARS; bar++) {
+    const b = bar * BAR;
+
+    // Four-on-the-floor kick
+    for (let i = 0; i < 4; i++) addKick(b + i * BEAT);
+
+    // Snare on 2 and 4
+    addSnare(b + BEAT);
+    addSnare(b + BEAT * 3);
+
+    // 16th hi-hats
+    for (let i = 0; i < 16; i++) addHat(b + i * T16, i % 2 === 0 ? 0.09 : 0.06);
+
+    // Bass — one note per beat
+    for (let i = 0; i < 4; i++) addBass(BASS_SEQ[bar * 4 + i], b + i * BEAT);
+
+    // Pad stab — on beat 1 and beat 3 of each bar
+    addPad(PAD_SEQ[bar], b);
+    addPad(PAD_SEQ[bar], b + BAR * 0.5);
+  }
+
+  // Arp lead — 16th notes across all 4 bars
+  ARP.forEach((note, i) => addArp(midiHz(note), i * T16));
+
+  return offline.startRendering();
+}
+
+async function startMusic() {
+  if (musicStarted) return;
+  musicStarted = true;
+  try {
+    const ac = getAudioCtx();
+    if (!musicBuffer) musicBuffer = await buildMusicBuffer();
+
+    const src = ac.createBufferSource();
+    src.buffer = musicBuffer;
+    src.loop = true;
+    src.playbackRate.setValueAtTime(1.0, ac.currentTime);
+    src.connect(ac.destination);
+    src.start();
+    musicSource = src;
+  } catch(e) { console.warn('Audio error:', e); }
+}
+
+function setMusicSpeed(scale) {
+  if (!musicSource || !audioCtx) return;
+  const waveBoost = 1 + (player.wave - 1) * 0.06;
+  const target = (scale < 1 ? CHRONO_SCALE : 1.0) * waveBoost;
+  // Snap back to normal immediately when chrono runs out; smooth into slow-mo
+  const timeConstant = scale < 1 ? 0.05 : 0.01;
+  musicSource.playbackRate.setTargetAtTime(target, audioCtx.currentTime, timeConstant);
+}
+
+function stopMusic() {
+  if (musicSource) { try { musicSource.stop(); } catch(e) {} musicSource = null; }
+  musicStarted = false;
+}
+
+// ─── SFX ─────────────────────────────────────────────────────────────────────
+function playImpactSound(type) {
+  try {
+    const ac = getAudioCtx();
+    const osc = ac.createOscillator();
+    const gain = ac.createGain();
+    osc.connect(gain); gain.connect(ac.destination);
+    if (type === 'absorb') {
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(520, ac.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(880, ac.currentTime + 0.08);
+      gain.gain.setValueAtTime(0.18, ac.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.18);
+      osc.start(); osc.stop(ac.currentTime + 0.18);
+    } else {
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(180, ac.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(55, ac.currentTime + 0.18);
+      gain.gain.setValueAtTime(0.22, ac.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.22);
+      osc.start(); osc.stop(ac.currentTime + 0.22);
+    }
+  } catch(e) {}
+}
+
+function playGlyphShiftSound() {
+  try {
+    const ac = getAudioCtx();
+    [440, 554, 659, 880].forEach((f, i) => {
+      const osc = ac.createOscillator();
+      const gain = ac.createGain();
+      osc.connect(gain); gain.connect(ac.destination);
+      osc.type = 'triangle';
+      const t = ac.currentTime + i * 0.06;
+      osc.frequency.setValueAtTime(f, t);
+      gain.gain.setValueAtTime(0.13, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
+      osc.start(t); osc.stop(t + 0.15);
+    });
+  } catch(e) {}
+}
+
+function playDashSound() {
+  try {
+    const ac = getAudioCtx();
+    // Swoosh: noise burst filtered with a fast pitch sweep
+    const bufSize = ac.sampleRate * 0.12;
+    const buf = ac.createBuffer(1, bufSize, ac.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < bufSize; i++) data[i] = (Math.random() * 2 - 1);
+    const src = ac.createBufferSource();
+    src.buffer = buf;
+    const filter = ac.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.setValueAtTime(2400, ac.currentTime);
+    filter.frequency.exponentialRampToValueAtTime(400, ac.currentTime + 0.12);
+    filter.Q.setValueAtTime(3, ac.currentTime);
+    const gain = ac.createGain();
+    gain.gain.setValueAtTime(0.35, ac.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.12);
+    src.connect(filter); filter.connect(gain); gain.connect(ac.destination);
+    src.start(); src.stop(ac.currentTime + 0.13);
+  } catch(e) {}
+}
+
+function playPickupSound(type) {
+  try {
+    const ac = getAudioCtx();
+    if (type === 'health') {
+      // Warm ascending chime: two sine tones
+      [[523, 0], [659, 0.07], [784, 0.14]].forEach(([f, delay]) => {
+        const osc = ac.createOscillator();
+        const gain = ac.createGain();
+        osc.connect(gain); gain.connect(ac.destination);
+        osc.type = 'sine';
+        const t = ac.currentTime + delay;
+        osc.frequency.setValueAtTime(f, t);
+        gain.gain.setValueAtTime(0.2, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
+        osc.start(t); osc.stop(t + 0.22);
+      });
+    } else {
+      // Electric zap: quick rising square + noise tick
+      const osc = ac.createOscillator();
+      const gain = ac.createGain();
+      osc.connect(gain); gain.connect(ac.destination);
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(220, ac.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(1760, ac.currentTime + 0.1);
+      gain.gain.setValueAtTime(0.15, ac.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.14);
+      osc.start(); osc.stop(ac.currentTime + 0.14);
+    }
+  } catch(e) {}
+}
+
+function playGameOverSound() {
+  try {
+    const ac = getAudioCtx();
+    // Descending 8-bit fanfare: four notes dropping
+    const notes = [[392,0],[330,0.22],[262,0.44],[196,0.66]];
+    notes.forEach(([f, delay]) => {
+      const osc = ac.createOscillator();
+      const gain = ac.createGain();
+      osc.connect(gain); gain.connect(ac.destination);
+      osc.type = 'square';
+      const t = ac.currentTime + delay;
+      osc.frequency.setValueAtTime(f, t);
+      gain.gain.setValueAtTime(0.22, t);
+      gain.gain.setValueAtTime(0.22, t + 0.16);
+      gain.gain.linearRampToValueAtTime(0.001, t + 0.2);
+      osc.start(t); osc.stop(t + 0.21);
+    });
+    // Final low thud
+    const osc2 = ac.createOscillator();
+    const g2 = ac.createGain();
+    osc2.connect(g2); g2.connect(ac.destination);
+    osc2.type = 'sawtooth';
+    osc2.frequency.setValueAtTime(98, ac.currentTime + 0.9);
+    osc2.frequency.exponentialRampToValueAtTime(40, ac.currentTime + 1.3);
+    g2.gain.setValueAtTime(0.3, ac.currentTime + 0.9);
+    g2.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 1.4);
+    osc2.start(ac.currentTime + 0.9); osc2.stop(ac.currentTime + 1.4);
+  } catch(e) {}
+}
+
+// ─── High Score Leaderboard ──────────────────────────────────────────────────
+function getScores() {
+  try { return JSON.parse(localStorage.getItem('glyphWarsScores') || '[]'); } catch(e) { return []; }
+}
+function saveScore(score, wave) {
+  const scores = getScores();
+  scores.push({ score, wave });
+  scores.sort((a, b) => b.score - a.score);
+  scores.splice(5); // keep top 5
+  localStorage.setItem('glyphWarsScores', JSON.stringify(scores));
+}
+function getHighScore() {
+  const s = getScores();
+  return s.length ? s[0].score : 0;
+}
+// legacy compat
+const setHighScore = () => {};
+
+function renderScoresPanel() {
+  const list = document.getElementById('scores-list');
+  const scores = getScores();
+  if (!scores.length) {
+    list.innerHTML = '<li><span class="empty">No scores yet — play to set one!</span></li>';
+    return;
+  }
+  list.innerHTML = scores.map((s, i) =>
+    `<li><span class="rank">${i + 1}.</span><span></span><span class="wave">Wave ${s.wave}</span><span class="pts">${s.score}</span></li>`
+  ).join('');
+}
+
+function updateStatsUI() {
+  if (!player) return;
+  document.getElementById('ui-score').textContent  = player.score;
+  document.getElementById('ui-combo').textContent  = `x${player.combo}`;
+  document.getElementById('ui-wave').textContent   = player.wave;
+  document.getElementById('ui-hp').textContent     = player.hp;
+  document.getElementById('ui-chrono').textContent = `${Math.ceil(player.chrono)}%`;
+}
+
+// ─── Starfield ───────────────────────────────────────────────────────────────
+const stars = Array.from({ length: 120 }, () => ({
+  x: Math.random() * W,
+  y: Math.random() * H,
+  r: Math.random() * 1.5 + 0.5,
+  a: Math.random() * 0.6 + 0.2
+}));
+
+// ─── Particle Pool ───────────────────────────────────────────────────────────
+const particlePool = [];
+const particles = [];
+
+function spawnParticle(x, y, color, count = 10) {
+  for (let i = 0; i < count; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = Math.random() * 3 + 1;
+    const p = particlePool.pop() || {};
+    p.x = x; p.y = y;
+    p.vx = Math.cos(angle) * speed;
+    p.vy = Math.sin(angle) * speed;
+    p.life = 60; p.maxLife = 60;
+    p.color = color;
+    p.size = Math.random() * 4 + 2;
+    particles.push(p);
+    if (particles.length > PARTICLE_MAX) {
+      const old = particles.shift();
+      particlePool.push(old);
+    }
+  }
+}
+
+// ─── Player ──────────────────────────────────────────────────────────────────
+let player;
+function initPlayer() {
+  player = {
+    x: W / 2, y: H / 2,
+    glyphIndex: 0,
+    hp: 100, maxHp: 100,
+    chrono: 100, maxChrono: 100,
+    score: 0, kills: 0,
+    wave: 1, waveKills: 0,
+    combo: 1, consecutiveKills: 0, comboTimer: 0,
+    dashTimer: 0, dashCooldown: 0, invulnTimer: 0,
+    dashVx: 0, dashVy: 0,
+    trail: [],
+    shakeTimer: 0, shakeMag: 0,
+    glyphFlash: 0
+  };
+}
+
+// ─── Enemies ─────────────────────────────────────────────────────────────────
+let enemies = [];
+let spawnTimer = 0;
+let waveTransTimer = 0;
+let waveTransText = '';
+
+function spawnEnemy() {
+  const edge = Math.floor(Math.random() * 4);
+  let x, y;
+  if (edge === 0) { x = Math.random() * W; y = -20; }
+  else if (edge === 1) { x = Math.random() * W; y = H + 20; }
+  else if (edge === 2) { x = -20; y = Math.random() * H; }
+  else { x = W + 20; y = Math.random() * H; }
+
+  const cx = W / 2, cy = H / 2;
+  const angle = Math.atan2(cy - y, cx - x) + (Math.random() - 0.5) * 0.8;
+
+  // Determine type based on wave — seekers from wave 3, splitters from wave 5
+  let type = 'normal';
+  const r = Math.random();
+  if (player.wave >= 5 && r < 0.08 + (player.wave - 5) * 0.03) type = 'splitter';
+  else if (player.wave >= 3 && r < 0.20 + (player.wave - 3) * 0.07) type = 'seeker';
+
+  // Speed ramps gently early, steeper after wave 4
+  const waveBonus = player.wave <= 4
+    ? player.wave * 0.12
+    : 0.48 + (player.wave - 4) * 0.22;
+  const speed = 1.3 + waveBonus;
+  // 50% chance to spawn a matching glyph enemy so there's always something to absorb
+  const gi = Math.random() < 0.5
+    ? player.glyphIndex
+    : Math.floor(Math.random() * GLYPHS.length);
+
+  enemies.push({
+    x, y,
+    vx: Math.cos(angle) * speed,
+    vy: Math.sin(angle) * speed,
+    glyph: GLYPHS[gi],
+    color: COLORS[gi],
+    glyphIndex: gi,
+    type,
+    hp: type === 'splitter' ? 2 : 1,
+    wobble: 0,
+    wobbleSpeed: (Math.random() - 0.5) * 0.08
+  });
+}
+
+// ─── Pickups ─────────────────────────────────────────────────────────────────
+let pickups = [];
+let pickupTimer = 300;
+
+function spawnPickup() {
+  const margin = 60;
+  pickups.push({
+    x: margin + Math.random() * (W - margin * 2),
+    y: margin + Math.random() * (H - margin * 2),
+    type: Math.random() < 0.5 ? 'health' : 'chrono',
+    pulse: 0,
+    life: 420  // ~7 seconds at 60fps
+  });
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+function dist(a, b) {
+  const dx = a.x - b.x, dy = a.y - b.y;
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
+function spawnInterval() {
+  // Gentle early, tightens fast after wave 4
+  if (player.wave <= 4) return 52 - player.wave * 4;       // 48 → 36
+  return Math.max(10, 36 - (player.wave - 4) * 5);         // 31 → 10
+}
+
+// ─── Update ──────────────────────────────────────────────────────────────────
+function update() {
+  if (gameState === 'paused' || gameState !== 'playing') return;
+
+  const isChrono = keys[' '] && player.chrono >= 1;
+  const timeScale = isChrono ? CHRONO_SCALE : 1.0;
+  setMusicSpeed(timeScale);
+
+  // Chrono energy
+  if (isChrono) {
+    player.chrono = Math.max(0, player.chrono - CHRONO_DRAIN);
+  } else {
+    player.chrono = Math.min(player.maxChrono, player.chrono + CHRONO_REGEN);
+  }
+
+  // Dash cooldown
+  if (player.dashCooldown > 0) player.dashCooldown--;
+  if (player.invulnTimer > 0) player.invulnTimer--;
+
+  // Player movement
+  if (player.dashTimer > 0) {
+    player.x += player.dashVx;
+    player.y += player.dashVy;
+    player.dashTimer--;
+  } else {
+    player.x += (mouse.x - player.x) * PLAYER_SPEED;
+    player.y += (mouse.y - player.y) * PLAYER_SPEED;
+  }
+  player.x = Math.max(PLAYER_R, Math.min(W - PLAYER_R, player.x));
+  player.y = Math.max(PLAYER_R, Math.min(H - PLAYER_R, player.y));
+
+  // Trail
+  player.trail.unshift({ x: player.x, y: player.y });
+  if (player.trail.length > TRAIL_LEN) player.trail.pop();
+
+  // Combo decay
+  if (player.comboTimer > 0) {
+    player.comboTimer--;
+    if (player.comboTimer === 0) {
+      player.consecutiveKills = 0;
+      player.combo = 1;
+    }
+  }
+
+  // Glyph flash
+  if (player.glyphFlash > 0) player.glyphFlash--;
+
+  // Shake
+  if (player.shakeTimer > 0) player.shakeTimer--;
+
+  // Spawn enemies
+  spawnTimer -= timeScale;
+  if (spawnTimer <= 0) {
+    spawnEnemy();
+    spawnTimer = spawnInterval();
+  }
+
+  // Spawn pickups
+  pickupTimer--;
+  if (pickupTimer <= 0) {
+    spawnPickup();
+    pickupTimer = 160 + Math.floor(Math.random() * 60);
+  }
+
+  // Update enemies
+  for (let i = enemies.length - 1; i >= 0; i--) {
+    const e = enemies[i];
+    if (e.type === 'seeker') {
+      const angle = Math.atan2(player.y - e.y, player.x - e.x);
+      const waveBonus = player.wave <= 4
+        ? player.wave * 0.12
+        : 0.48 + (player.wave - 4) * 0.22;
+      const speed = (1.5 + waveBonus) * timeScale;
+      e.vx = Math.cos(angle) * speed;
+      e.vy = Math.sin(angle) * speed;
+    } else {
+      e.wobble += e.wobbleSpeed;
+      const perpX = -e.vy, perpY = e.vx;
+      const len = Math.sqrt(perpX * perpX + perpY * perpY) || 1;
+      e.x += (e.vx + (perpX / len) * Math.sin(e.wobble) * 0.4) * timeScale;
+      e.y += (e.vy + (perpY / len) * Math.sin(e.wobble) * 0.4) * timeScale;
+    }
+    if (e.type === 'seeker') {
+      e.x += e.vx;
+      e.y += e.vy;
+    }
+
+    // Remove off-screen (with margin)
+    if (e.x < -60 || e.x > W + 60 || e.y < -60 || e.y > H + 60) {
+      enemies.splice(i, 1);
+      continue;
+    }
+
+    // Collision with player
+    const r = e.type === 'splitter' ? SPLITTER_R : ENEMY_R;
+    if (dist(player, e) < PLAYER_R + r) {
+      if (e.glyph === GLYPHS[player.glyphIndex]) {
+        // Absorb
+        player.consecutiveKills++;
+        player.combo = Math.min(20, 1 + Math.floor(player.consecutiveKills / 2));
+        player.comboTimer = COMBO_DECAY;
+        const pts = 10 * player.combo;
+        player.score += pts;
+        player.kills++;
+        player.waveKills++;
+        spawnParticle(e.x, e.y, e.color, 12);
+        playImpactSound('absorb');
+
+        // Glyph rotation every 5 kills
+        if (player.kills % 5 === 0) {
+          player.glyphIndex = (player.glyphIndex + 1) % GLYPHS.length;
+          player.glyphFlash = 40;
+          spawnParticle(player.x, player.y, COLORS[player.glyphIndex], 20);
+          playGlyphShiftSound();
+        }
+
+        // Splitter spawns children
+        if (e.type === 'splitter') {
+          for (let s = 0; s < 3; s++) {
+            const a = (s / 3) * Math.PI * 2;
+            const speed = 2.2 + player.wave * 0.18;
+            const gi = e.glyphIndex;
+            enemies.push({
+              x: e.x, y: e.y,
+              vx: Math.cos(a) * speed, vy: Math.sin(a) * speed,
+              glyph: GLYPHS[gi], color: COLORS[gi], glyphIndex: gi,
+              type: 'normal', hp: 1,
+              wobble: 0, wobbleSpeed: (Math.random() - 0.5) * 0.08
+            });
+          }
+        }
+        enemies.splice(i, 1);
+
+        // Wave progression — shorter early waves, longer later
+        const needed = 8 + player.wave * 4;
+        if (player.waveKills >= needed) {
+          player.wave++;
+          player.waveKills = 0;
+          waveTransTimer = 90;
+          waveTransText = `WAVE ${player.wave}`;
+          spawnTimer = spawnInterval();
+          spawnParticle(W / 2, H / 2, '#ffffff', 30);
+          setMusicSpeed(1.0); // re-evaluate with new wave number
+        }
+      } else if (player.invulnTimer === 0) {
+        // Damage scales with wave — light early, punishing later
+        player.hp -= player.wave <= 3 ? 12 : player.wave <= 5 ? 16 : 20;
+        player.invulnTimer = 20;
+        player.shakeTimer = 12;
+        player.shakeMag = 6;
+        spawnParticle(player.x, player.y, '#ff4444', 8);
+        playImpactSound('damage');
+        if (player.hp <= 0) {
+          player.hp = 0;
+          saveScore(player.score, player.wave);
+          renderScoresPanel();
+          gameState = 'gameover';
+          stopMusic();
+          playGameOverSound();
+          speakNarrator(`Your glyph fades. Final score: ${player.score}. You reached wave ${player.wave}. The arena remembers.`);
+        }
+      }
+    }
+  }
+
+  // Update pickups
+  for (let i = pickups.length - 1; i >= 0; i--) {
+    const pk = pickups[i];
+    pk.pulse += 0.08;
+    pk.life--;
+    if (pk.life <= 0) { pickups.splice(i, 1); continue; }
+    if (dist(player, pk) < PLAYER_R + PICKUP_R) {
+      if (pk.type === 'health') {
+        player.hp = Math.min(player.maxHp, player.hp + 25);
+        spawnParticle(pk.x, pk.y, '#6bcb77', 10);
+        playPickupSound('health');
+      } else {
+        player.chrono = Math.min(player.maxChrono, player.chrono + 40);
+        spawnParticle(pk.x, pk.y, '#00d2d3', 10);
+        playPickupSound('chrono');
+      }
+      pickups.splice(i, 1);
+    }
+  }
+
+  // Update particles
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx;
+    p.y += p.vy;
+    p.vx *= 0.92;
+    p.vy *= 0.92;
+    p.life--;
+    if (p.life <= 0) {
+      particlePool.push(particles.splice(i, 1)[0]);
+    }
+  }
+
+  // Wave transition timer
+  if (waveTransTimer > 0) waveTransTimer--;
+}
+
+// ─── Draw ────────────────────────────────────────────────────────────────────
+function draw() {
+  ctx.save();
+
+  // Screen shake
+  if (player && player.shakeTimer > 0) {
+    const sx = (Math.random() - 0.5) * player.shakeMag * 2;
+    const sy = (Math.random() - 0.5) * player.shakeMag * 2;
+    ctx.translate(sx, sy);
+  }
+
+  // Background
+  ctx.fillStyle = '#050510';
+  ctx.fillRect(0, 0, W, H);
+
+  // Grid
+  ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+  ctx.lineWidth = 1;
+  for (let x = 0; x < W; x += 40) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+  for (let y = 0; y < H; y += 40) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+
+  // Stars
+  stars.forEach(s => {
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(255,255,255,${s.a})`;
+    ctx.fill();
+  });
+
+  if (gameState === 'menu') {
+    drawMenu();
+  } else if (gameState === 'playing') {
+    drawGame();
+    drawPauseButton();
+  } else if (gameState === 'paused') {
+    drawGame();
+    drawPauseButton();
+    drawPauseOverlay();
+  } else if (gameState === 'gameover') {
+    drawGame();
+    drawGameOver();
+  }
+
+  ctx.restore();
+}
+
+function drawMenu() {
+  // Floating glyphs
+  const t = Date.now() / 1000;
+  GLYPHS.forEach((g, i) => {
+    const angle = (i / GLYPHS.length) * Math.PI * 2 + t * 0.3;
+    const x = W / 2 + Math.cos(angle) * 160;
+    const y = H / 2 + Math.sin(angle) * 90;
+    ctx.font = '28px serif';
+    ctx.fillStyle = COLORS[i];
+    ctx.globalAlpha = 0.5;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(g, x, y);
+  });
+  ctx.globalAlpha = 1;
+
+  ctx.font = 'bold 52px serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#ffffff';
+  ctx.shadowColor = '#c77dff';
+  ctx.shadowBlur = 30;
+  ctx.fillText('GLYPH WARS', W / 2, H / 2 - 60);
+  ctx.shadowBlur = 0;
+
+  ctx.font = '15px monospace';
+  ctx.fillStyle = '#aaaaaa';
+  ctx.fillText('Absorb matching glyphs  ·  Avoid mismatches  ·  Glyph shifts every 5 kills', W / 2, H / 2 - 18);
+
+  // Controls
+  const controls = [
+    { key: 'Mouse',  desc: 'Move your warrior' },
+    { key: 'Click',  desc: 'Dash toward cursor' },
+    { key: 'Space',  desc: 'Chrono Shift — slow time' },
+  ];
+  controls.forEach((c, i) => {
+    const y = H / 2 + 18 + i * 26;
+    // key pill
+    ctx.font = 'bold 13px monospace';
+    ctx.textAlign = 'right';
+    ctx.fillStyle = '#aabbff';
+    ctx.fillText(c.key, W / 2 - 8, y);
+    // desc
+    ctx.font = '13px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#cccccc';
+    ctx.fillText('— ' + c.desc, W / 2 + 8, y);
+  });
+
+  const pulse = 0.7 + Math.sin(Date.now() / 400) * 0.3;
+  ctx.globalAlpha = pulse;
+  ctx.font = 'bold 20px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#ffffff';
+  ctx.shadowColor = '#c77dff';
+  ctx.shadowBlur = 10;
+  ctx.fillText('CLICK TO START', W / 2, H / 2 + 108);
+  ctx.shadowBlur = 0;
+  ctx.globalAlpha = 1;
+}
+
+function drawGame() {
+  // Particles (behind entities)
+  particles.forEach(p => {
+    ctx.globalAlpha = p.life / p.maxLife;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size * (p.life / p.maxLife), 0, Math.PI * 2);
+    ctx.fillStyle = p.color;
+    ctx.fill();
+  });
+  ctx.globalAlpha = 1;
+
+  // Pickups
+  pickups.forEach(pk => {
+    const pulse = Math.sin(pk.pulse) * 3;
+    // Fade out in last 120 frames; flash in last 60
+    const fadeAlpha = pk.life < 120 ? pk.life / 120 : 1;
+    const flashing  = pk.life < 60 && Math.floor(pk.life / 8) % 2 === 0;
+    if (flashing) return;
+    ctx.globalAlpha = fadeAlpha;
+    ctx.beginPath();
+    ctx.arc(pk.x, pk.y, PICKUP_R + pulse, 0, Math.PI * 2);
+    ctx.strokeStyle = pk.type === 'health' ? '#6bcb77' : '#00d2d3';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.font = '14px serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = pk.type === 'health' ? '#6bcb77' : '#00d2d3';
+    ctx.fillText(pk.type === 'health' ? '♥' : '⚡', pk.x, pk.y);
+    ctx.globalAlpha = 1;
+  });
+
+  // Enemies
+  enemies.forEach(e => {
+    const r = e.type === 'splitter' ? SPLITTER_R : ENEMY_R;
+    ctx.beginPath();
+    ctx.arc(e.x, e.y, r, 0, Math.PI * 2);
+    ctx.strokeStyle = e.color;
+    ctx.lineWidth = e.type === 'splitter' ? 3 : e.type === 'seeker' ? 1.5 : 2;
+    if (e.type === 'seeker') {
+      ctx.setLineDash([4, 4]);
+    } else {
+      ctx.setLineDash([]);
+    }
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.font = `${e.type === 'splitter' ? 20 : 16}px serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = e.color;
+    ctx.fillText(e.glyph, e.x, e.y);
+  });
+
+  // Player trail
+  player.trail.forEach((pt, i) => {
+    const alpha = (1 - i / TRAIL_LEN) * 0.35;
+    const size = PLAYER_R * (1 - i / TRAIL_LEN) * 0.6;
+    ctx.beginPath();
+    ctx.arc(pt.x, pt.y, size, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(${hexToRgb(COLORS[player.glyphIndex])},${alpha})`;
+    ctx.fill();
+  });
+
+  // Player
+  const playerColor = COLORS[player.glyphIndex];
+  const isInvuln = player.invulnTimer > 0;
+  const isDashing = player.dashTimer > 0;
+
+  if (!isInvuln || Math.floor(Date.now() / 80) % 2 === 0) {
+    // Glow
+    ctx.shadowColor = playerColor;
+    ctx.shadowBlur = isDashing ? 30 : 15;
+
+    ctx.beginPath();
+    ctx.arc(player.x, player.y, PLAYER_R, 0, Math.PI * 2);
+    ctx.strokeStyle = playerColor;
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    ctx.font = '22px serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = playerColor;
+    ctx.shadowColor = playerColor;
+    ctx.shadowBlur = 10;
+    ctx.fillText(GLYPHS[player.glyphIndex], player.x, player.y);
+    ctx.shadowBlur = 0;
+
+    // "ABSORB" label above player
+    ctx.font = '9px monospace';
+    ctx.fillStyle = 'rgba(180,180,255,0.5)';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText('ABSORB', player.x, player.y - PLAYER_R - 6);
+  }
+
+  // Glyph shift announcement
+  if (player.glyphFlash > 0) {
+    const alpha = player.glyphFlash / 40;
+    ctx.globalAlpha = alpha;
+    ctx.font = 'bold 28px monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = COLORS[player.glyphIndex];
+    ctx.fillText('GLYPH SHIFT!', W / 2, H / 2 - 60);
+    ctx.globalAlpha = 1;
+  }
+
+  // Wave transition
+  if (waveTransTimer > 0) {
+    const alpha = Math.min(1, waveTransTimer / 30);
+    ctx.globalAlpha = alpha;
+    ctx.font = 'bold 40px monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#ffffff';
+    ctx.shadowColor = '#4d96ff';
+    ctx.shadowBlur = 20;
+    ctx.fillText(waveTransText, W / 2, H / 2);
+    ctx.shadowBlur = 0;
+    ctx.globalAlpha = 1;
+  }
+
+  drawHUD();
+}
+
+function drawHUD() {
+  const barH = 5, barY = H - 14, pad = 12, barW = 200;
+
+  // HP bar — bottom left
+  ctx.fillStyle = 'rgba(255,255,255,0.08)';
+  ctx.fillRect(pad, barY, barW, barH);
+  ctx.fillStyle = '#6bcb77';
+  ctx.fillRect(pad, barY, barW * (player.hp / player.maxHp), barH);
+  ctx.font = '9px monospace';
+  ctx.fillStyle = 'rgba(255,255,255,0.35)';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'bottom';
+  ctx.fillText('HP', pad, barY - 2);
+
+  // Chrono bar — bottom right
+  const cx = W - pad - barW;
+  ctx.fillStyle = 'rgba(255,255,255,0.08)';
+  ctx.fillRect(cx, barY, barW, barH);
+  ctx.fillStyle = '#4d96ff';
+  ctx.fillRect(cx, barY, barW * (player.chrono / player.maxChrono), barH);
+  ctx.textAlign = 'right';
+  ctx.fillText('CHRONO', W - pad, barY - 2);
+
+  // Combo — center bottom (only when active)
+  if (player.combo > 1) {
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    ctx.font = `bold ${16 + Math.min(player.combo, 10)}px monospace`;
+    ctx.fillStyle = '#ffd93d';
+    ctx.shadowColor = '#ffd93d';
+    ctx.shadowBlur = 10;
+    ctx.fillText(`x${player.combo} COMBO`, W / 2, H - 22);
+    ctx.shadowBlur = 0;
+  }
+}
+
+function drawPauseButton() {
+  const bx = W - 44, by = H - 36, bw = 32, bh = 22;
+  ctx.fillStyle = 'rgba(255,255,255,0.08)';
+  ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.roundRect(bx, by, bw, bh, 4);
+  ctx.fill();
+  ctx.stroke();
+  // Two pause bars
+  ctx.fillStyle = 'rgba(255,255,255,0.7)';
+  ctx.fillRect(bx + 9, by + 5, 4, 12);
+  ctx.fillRect(bx + 17, by + 5, 4, 12);
+}
+
+function drawPauseOverlay() {
+  ctx.fillStyle = 'rgba(5,5,16,0.75)';
+  ctx.fillRect(0, 0, W, H);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = 'bold 44px serif';
+  ctx.fillStyle = '#ffffff';
+  ctx.shadowColor = '#c77dff';
+  ctx.shadowBlur = 20;
+  ctx.fillText('PAUSED', W / 2, H / 2 - 20);
+  ctx.shadowBlur = 0;
+  ctx.font = '16px monospace';
+  ctx.fillStyle = '#aaaaaa';
+  ctx.fillText('Press P or click ⏸ to resume', W / 2, H / 2 + 24);
+}
+
+function drawGameOver() {
+  ctx.fillStyle = 'rgba(5,5,16,0.82)';
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  ctx.font = 'bold 48px serif';
+  ctx.fillStyle = '#ff6b6b';
+  ctx.shadowColor = '#ff6b6b';
+  ctx.shadowBlur = 24;
+  ctx.fillText('GAME OVER', W / 2, H / 2 - 40);
+  ctx.shadowBlur = 0;
+
+  ctx.font = '18px monospace';
+  ctx.fillStyle = '#aaaaaa';
+  ctx.fillText(`Score ${player.score}  ·  Wave ${player.wave}`, W / 2, H / 2 + 10);
+
+  const pulse = 0.7 + Math.sin(Date.now() / 400) * 0.3;
+  ctx.globalAlpha = pulse;
+  ctx.font = '16px monospace';
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText('CLICK TO PLAY AGAIN', W / 2, H / 2 + 55);
+  ctx.globalAlpha = 1;
+}
+
+// ─── Utility ─────────────────────────────────────────────────────────────────
+function hexToRgb(hex) {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `${r},${g},${b}`;
+}
+
+// ─── Input ───────────────────────────────────────────────────────────────────
+canvas.addEventListener('mousemove', e => {
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = W / rect.width;
+  const scaleY = H / rect.height;
+  mouse.x = (e.clientX - rect.left) * scaleX;
+  mouse.y = (e.clientY - rect.top) * scaleY;
+});
+
+canvas.addEventListener('mousedown', e => {
+  if (gameState === 'menu') {
+    startGame();
+    return;
+  }
+  if (gameState === 'gameover') {
+    startGame();
+    return;
+  }
+  // Pause button hit test (bottom-right corner)
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = W / rect.width;
+  const scaleY = H / rect.height;
+  const cx = (e.clientX - rect.left) * scaleX;
+  const cy = (e.clientY - rect.top) * scaleY;
+  if ((gameState === 'playing' || gameState === 'paused') &&
+      cx >= W - 44 && cx <= W - 12 && cy >= H - 36 && cy <= H - 14) {
+    togglePause();
+    return;
+  }
+  if (gameState === 'paused') return;
+  if (gameState === 'playing' && player.dashCooldown === 0 && player.dashTimer === 0) {
+    const dx = mouse.x - player.x;
+    const dy = mouse.y - player.y;
+    const len = Math.sqrt(dx * dx + dy * dy) || 1;
+    player.dashVx = (dx / len) * 14;
+    player.dashVy = (dy / len) * 14;
+    player.dashTimer = DASH_FRAMES;
+    player.dashCooldown = DASH_COOLDOWN;
+    player.invulnTimer = INVULN_FRAMES;
+    playDashSound();
+  }
+});
+
+document.addEventListener('keydown', e => {
+  keys[e.key] = true;
+  if (e.key === ' ') e.preventDefault();
+  if (e.key === 'p' || e.key === 'P') {
+    if (gameState === 'playing' || gameState === 'paused') togglePause();
+  }
+});
+document.addEventListener('keyup', e => { keys[e.key] = false; });
+
+// ─── Game Flow ───────────────────────────────────────────────────────────────
+function togglePause() {
+  if (gameState === 'playing') {
+    gameState = 'paused';
+    if (audioCtx) audioCtx.suspend();
+  } else if (gameState === 'paused') {
+    gameState = 'playing';
+    if (audioCtx) audioCtx.resume();
+  }
+}
+
+function startGame() {
+  initPlayer();
+  enemies = [];
+  pickups = [];
+  particles.length = 0;
+  spawnTimer = 60;
+  pickupTimer = 160;
+  waveTransTimer = 0;
+  gameState = 'playing';
+  startMusic();
+}
+
+// ─── Main Loop ───────────────────────────────────────────────────────────────
+function loop() {
+  update();
+  draw();
+  updateStatsUI();
+  requestAnimationFrame(loop);
+}
+
+document.getElementById('btn-restart').addEventListener('click', () => {
+  if (gameState !== 'menu') startGame();
+});
+
+initPlayer();
+renderScoresPanel();
+loop();
+
+// ─── Autoplay on first user interaction (browser audio policy) ───────────────
+let narratorPlayed = false;
+async function onFirstInteraction() {
+  if (narratorPlayed) return;
+  narratorPlayed = true;
+  window.removeEventListener('pointerdown', onFirstInteraction);
+  // Unlock AudioContext with a silent buffer first, then speak
+  try {
+    const ac = getAudioCtx();
+    if (ac.state === 'suspended') await ac.resume();
+    const silent = ac.createBuffer(1, 1, 22050);
+    const src = ac.createBufferSource();
+    src.buffer = silent;
+    src.connect(ac.destination);
+    src.start();
+  } catch(e) {}
+  speakNarrator('The cosmic arena awakens. Absorb your kin. Destroy the rest. Good luck, warrior.');
+}
+window.addEventListener('pointerdown', onFirstInteraction);
+</script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+{
+  "name": "glyph-wars",
+  "version": "1.0.0",
+  "description": "Arcade browser game — absorb matching glyph enemies in a cosmic arena",
+  "main": "index.html",
+  "scripts": {
+    "start": "npx live-server --port=5500 --open=index.html"
+  },
+  "keywords": ["game", "canvas", "arcade", "vanilla-js"],
+  "author": "",
+  "license": "MIT"
+}
