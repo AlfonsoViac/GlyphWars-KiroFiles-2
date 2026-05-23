@@ -101,6 +101,7 @@
     align-items: center;
   }
   #scores-list li .rank { color: #5566cc; }
+  #scores-list li .name { color: #ccccff; }
   #scores-list li .wave { color: #888; text-align: center; }
   #scores-list li .pts  { color: #fff; font-weight: bold; text-align: right; }
   #scores-list .empty   { color: #444; font-style: italic; grid-column: 1/-1; }
@@ -125,12 +126,58 @@
   }
   #controls-bar .dot { color: #3a3a6a; }
   #controls-bar .label { color: #cccccc; }
+  #name-overlay {
+    display: none;
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(5,5,16,0.88);
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    z-index: 10;
+  }
+  #name-overlay.visible { display: flex; }
+  #name-overlay p { color: #aaa; font-size: 14px; font-family: 'Courier New', monospace; letter-spacing: 0.1em; }
+  #name-overlay strong { color: #fff; font-size: 18px; }
+  #name-input {
+    background: #0d0d22;
+    border: 1px solid #4455aa;
+    border-radius: 4px;
+    color: #fff;
+    font-family: 'Courier New', monospace;
+    font-size: 18px;
+    padding: 8px 16px;
+    text-align: center;
+    width: 260px;
+    outline: none;
+  }
+  #name-submit {
+    background: #1a1a3a;
+    border: 1px solid #4455aa;
+    border-radius: 4px;
+    color: #aabbff;
+    font-family: 'Courier New', monospace;
+    font-size: 14px;
+    letter-spacing: 0.15em;
+    padding: 8px 28px;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  #name-submit:hover { background: #2a2a5a; color: #fff; }
 </style>
 </head>
 <body>
 <div id="title">G L Y P H &nbsp; W A R S</div>
 <div id="canvas-wrap">
   <canvas id="game" width="680" height="500"></canvas>
+  <div id="name-overlay">
+    <p>GAME OVER</p>
+    <strong id="overlay-score"></strong>
+    <p>Enter your name for the leaderboard</p>
+    <input id="name-input" type="text" maxlength="20" placeholder="Your name" autocomplete="off" />
+    <button id="name-submit">SUBMIT SCORE</button>
+  </div>
 </div>
 <div id="stats-bar">
   <div class="stat-pill">Score <span id="ui-score">0</span></div>
@@ -569,33 +616,46 @@ function playGameOverSound() {
   } catch(e) {}
 }
 
-// ─── High Score Leaderboard ──────────────────────────────────────────────────
-function getScores() {
-  try { return JSON.parse(localStorage.getItem('glyphWarsScores') || '[]'); } catch(e) { return []; }
-}
-function saveScore(score, wave) {
-  const scores = getScores();
-  scores.push({ score, wave });
-  scores.sort((a, b) => b.score - a.score);
-  scores.splice(5); // keep top 5
-  localStorage.setItem('glyphWarsScores', JSON.stringify(scores));
-}
-function getHighScore() {
-  const s = getScores();
-  return s.length ? s[0].score : 0;
-}
-// legacy compat
-const setHighScore = () => {};
+// ─── Supabase Leaderboard ─────────────────────────────────────────────────────
+const SUPABASE_URL = 'https://vbvdhquoxedbfgjlxjsi.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_pdML5SA77Ke4aGdBX9cNQA_4niEKcZJ';
 
-function renderScoresPanel() {
+async function fetchLeaderboard() {
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/leaderboard?select=name,score,wave&order=score.desc&limit=10`,
+      { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } }
+    );
+    if (!res.ok) return [];
+    return await res.json();
+  } catch(e) { return []; }
+}
+
+async function submitScore(name, score, wave) {
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/leaderboard`, {
+      method: 'POST',
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=minimal'
+      },
+      body: JSON.stringify({ name, score, wave })
+    });
+  } catch(e) {}
+}
+
+async function renderScoresPanel() {
   const list = document.getElementById('scores-list');
-  const scores = getScores();
+  list.innerHTML = '<li><span class="empty">Loading...</span></li>';
+  const scores = await fetchLeaderboard();
   if (!scores.length) {
     list.innerHTML = '<li><span class="empty">No scores yet — play to set one!</span></li>';
     return;
   }
   list.innerHTML = scores.map((s, i) =>
-    `<li><span class="rank">${i + 1}.</span><span></span><span class="wave">Wave ${s.wave}</span><span class="pts">${s.score}</span></li>`
+    `<li><span class="rank">${i + 1}.</span><span class="name">${s.name}</span><span class="wave">Wave ${s.wave}</span><span class="pts">${s.score}</span></li>`
   ).join('');
 }
 
@@ -886,12 +946,11 @@ function update() {
         playImpactSound('damage');
         if (player.hp <= 0) {
           player.hp = 0;
-          saveScore(player.score, player.wave);
-          renderScoresPanel();
           gameState = 'gameover';
           stopMusic();
           playGameOverSound();
           speakNarrator(`Your glyph fades. Final score: ${player.score}. You reached wave ${player.wave}. The arena remembers.`);
+          showNameInput(player.score, player.wave);
         }
       }
     }
@@ -906,7 +965,7 @@ function update() {
     if (dist(player, pk) < PLAYER_R + PICKUP_R) {
       if (pk.type === 'health') {
         player.hp = Math.min(player.maxHp, player.hp + 25);
-        spawnParticle(pk.x, pk.y, '#6bcb77', 10);
+        spawnParticle(pk.x, pk.y, '#ffffff', 10);
         playPickupSound('health');
       } else {
         player.chrono = Math.min(player.maxChrono, player.chrono + 40);
@@ -1062,13 +1121,13 @@ function drawGame() {
     ctx.globalAlpha = fadeAlpha;
     ctx.beginPath();
     ctx.arc(pk.x, pk.y, PICKUP_R + pulse, 0, Math.PI * 2);
-    ctx.strokeStyle = pk.type === 'health' ? '#6bcb77' : '#00d2d3';
+    ctx.strokeStyle = pk.type === 'health' ? '#ffffff' : '#00d2d3';
     ctx.lineWidth = 2;
     ctx.stroke();
     ctx.font = '14px serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillStyle = pk.type === 'health' ? '#6bcb77' : '#00d2d3';
+    ctx.fillStyle = pk.type === 'health' ? '#ffffff' : '#00d2d3';
     ctx.fillText(pk.type === 'health' ? '♥' : '⚡', pk.x, pk.y);
     ctx.globalAlpha = 1;
   });
@@ -1285,6 +1344,7 @@ canvas.addEventListener('mousedown', e => {
     return;
   }
   if (gameState === 'gameover') {
+    if (document.getElementById('name-overlay').classList.contains('visible')) return;
     startGame();
     return;
   }
@@ -1323,6 +1383,25 @@ document.addEventListener('keydown', e => {
 document.addEventListener('keyup', e => { keys[e.key] = false; });
 
 // ─── Game Flow ───────────────────────────────────────────────────────────────
+// ─── Name Input Overlay ───────────────────────────────────────────────────────
+function showNameInput(score, wave) {
+  const overlay = document.getElementById('name-overlay');
+  document.getElementById('overlay-score').textContent = `Score: ${score}  ·  Wave: ${wave}`;
+  document.getElementById('name-input').value = '';
+  overlay.classList.add('visible');
+  setTimeout(() => document.getElementById('name-input').focus(), 50);
+
+  async function handleSubmit() {
+    const name = document.getElementById('name-input').value.trim() || 'Anonymous';
+    overlay.classList.remove('visible');
+    await submitScore(name, score, wave);
+    renderScoresPanel();
+  }
+
+  document.getElementById('name-submit').onclick = handleSubmit;
+  document.getElementById('name-input').onkeydown = e => { if (e.key === 'Enter') handleSubmit(); };
+}
+
 function togglePause() {
   if (gameState === 'playing') {
     gameState = 'paused';
